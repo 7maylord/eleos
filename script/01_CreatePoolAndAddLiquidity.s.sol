@@ -24,6 +24,9 @@ contract CreatePoolAndAddLiquidityScript is BaseScript, LiquidityHelpers {
     uint256 public token0Amount = 100e18;
     uint256 public token1Amount = 100e18;
 
+    // Lock duration for the RecaptureHook position (default: 30 days)
+    uint40 lockDuration = 30 days;
+
     // range of the position, must be a multiple of tickSpacing
     int24 tickLower;
     int24 tickUpper;
@@ -38,7 +41,8 @@ contract CreatePoolAndAddLiquidityScript is BaseScript, LiquidityHelpers {
             hooks: hookContract
         });
 
-        bytes memory hookData = new bytes(0);
+        // hookData for RecaptureHook: abi.encode(owner, lockDuration)
+        bytes memory hookData = abi.encode(deployerAddress, lockDuration);
 
         int24 currentTick = TickMath.getTickAtSqrtPrice(startingPrice);
 

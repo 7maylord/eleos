@@ -26,6 +26,9 @@ contract AddLiquidityScript is BaseScript, LiquidityHelpers {
     uint256 public token0Amount = 1e18;
     uint256 public token1Amount = 1e18;
 
+    // Lock duration for the RecaptureHook position (default: 30 days)
+    uint40 lockDuration = 30 days;
+
     /////////////////////////////////////
 
     int24 tickLower;
@@ -39,7 +42,8 @@ contract AddLiquidityScript is BaseScript, LiquidityHelpers {
             tickSpacing: tickSpacing,
             hooks: hookContract
         });
-        bytes memory hookData = new bytes(0);
+        // hookData for RecaptureHook: abi.encode(owner, lockDuration)
+        bytes memory hookData = abi.encode(deployerAddress, lockDuration);
 
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
 

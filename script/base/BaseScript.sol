@@ -15,22 +15,28 @@ import {AddressConstants} from "hookmate/constants/AddressConstants.sol";
 
 import {Deployers} from "test/utils/Deployers.sol";
 
-/// @notice Shared configuration between scripts
+/// @notice Shared configuration between scripts.
+///         Token and hook addresses are read from environment variables so no Solidity
+///         edits are needed between deployments.
+///
+///   TOKEN0_ADDRESS   — address of the first ERC-20 token
+///   TOKEN1_ADDRESS   — address of the second ERC-20 token
+///   HOOK_ADDRESS     — deployed RecaptureHook address (set after 00_DeployHook runs)
 contract BaseScript is Script, Deployers {
     address immutable deployerAddress;
 
-    /////////////////////////////////////
-    // --- Configure These ---
-    /////////////////////////////////////
-    IERC20 internal constant token0 = IERC20(0x0165878A594ca255338adfa4d48449f69242Eb8F);
-    IERC20 internal constant token1 = IERC20(0xa513E6E4b8f2a923D98304ec87F64353C4D5C853);
-    IHooks constant hookContract = IHooks(address(0));
-    /////////////////////////////////////
+    IERC20  immutable internal token0;
+    IERC20  immutable internal token1;
+    IHooks  immutable internal hookContract;
 
     Currency immutable currency0;
     Currency immutable currency1;
 
     constructor() {
+        token0       = IERC20(vm.envOr("TOKEN0_ADDRESS", address(0)));
+        token1       = IERC20(vm.envOr("TOKEN1_ADDRESS", address(0)));
+        hookContract = IHooks(vm.envOr("HOOK_ADDRESS",   address(0)));
+
         // Make sure artifacts are available, either deploy or configure.
         deployArtifacts();
 
@@ -38,14 +44,13 @@ contract BaseScript is Script, Deployers {
 
         (currency0, currency1) = getCurrencies();
 
-        vm.label(address(permit2), "Permit2");
-        vm.label(address(poolManager), "V4PoolManager");
+        vm.label(address(permit2),         "Permit2");
+        vm.label(address(poolManager),     "V4PoolManager");
         vm.label(address(positionManager), "V4PositionManager");
-        vm.label(address(swapRouter), "V4SwapRouter");
+        vm.label(address(swapRouter),      "V4SwapRouter");
 
-        vm.label(address(token0), "Currency0");
-        vm.label(address(token1), "Currency1");
-
+        vm.label(address(token0),       "Currency0");
+        vm.label(address(token1),       "Currency1");
         vm.label(address(hookContract), "HookContract");
     }
 
@@ -57,8 +62,10 @@ contract BaseScript is Script, Deployers {
         }
     }
 
-    function getCurrencies() internal pure returns (Currency, Currency) {
-        require(address(token0) != address(token1));
+    function getCurrencies() internal view returns (Currency, Currency) {
+        require(address(token0) != address(0),    "TOKEN0_ADDRESS not set");
+        require(address(token1) != address(0),    "TOKEN1_ADDRESS not set");
+        require(address(token0) != address(token1), "tokens must differ");
 
         if (token0 < token1) {
             return (Currency.wrap(address(token0)), Currency.wrap(address(token1)));
