@@ -6,6 +6,7 @@ import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 
 import {RecaptureVault} from "../src/RecaptureVault.sol";
+import {MockYieldVault} from "./utils/MockYieldVault.sol";
 
 contract RecaptureVaultTest is Test {
     RecaptureVault vault;
@@ -400,5 +401,226 @@ contract RecaptureVaultTest is Test {
 
         assertLe(p1 + p2 + p3, SEED);
         assertEq(vault.poolBalance(poolId), SEED - p1 - p2 - p3);
+    }
+}
+
+// ─── Yield Vault Integration Tests ────────────────────────────────────────────
+// Separate contract so setUp can set address(this) as hook for direct calls.
+
+contract RecaptureVaultYieldTest is Test {
+    RecaptureVault vault;
+    MockERC20 token;
+    MockYieldVault yv;
+
+    PoolId poolId  = PoolId.wrap(bytes32(uint256(1)));
+    PoolId poolId2 = PoolId.wrap(bytes32(uint256(2)));
+    bytes32 posId  = bytes32(uint256(0xBEEF));
+    address recipient = address(0x1234);
+
+    uint256 constant SEED = 1_000 ether;
+
+    function setUp() public {
+        token = new MockERC20("TT", "TT", 18);
+        vault = new RecaptureVault(address(this));
+        yv    = new MockYieldVault(address(token));
+
+        // address(this) is both owner and hook for easy testing
+        vault.setHook(address(this));
+        vault.registerPool(poolId, address(token));
+
+        token.mint(address(this), 10_000_000 ether);
+        token.approve(address(vault), type(uint256).max);
+    }
+
+    // ─── setYieldVault ─────────────────────────────────────────────────────────
+
+    function test_setYieldVault_onlyOwner() public {
+        vm.prank(address(0xDEAD));
+        vm.expectRevert();
+        vault.setYieldVault(poolId, address(yv));
+    }
+
+    function test_setYieldVault_requiresRegisteredPool() public {
+        vm.expectRevert("pool not registered");
+        vault.setYieldVault(poolId2, address(yv));
+    }
+
+    function test_setYieldVault_revertsWithExistingShares() public {
+        vault.setYieldVault(poolId, address(yv));
+        vault.seedPool(poolId, SEED);         // _depositToYield → shares > 0
+        assertGt(vault.yieldShares(poolId), 0);
+
+        MockYieldVault yv2 = new MockYieldVault(address(token)); // deploy BEFORE expectRevert
+        vm.expectRevert("redeem yield before changing vault");
+        vault.setYieldVault(poolId, address(yv2));
+    }
+
+    function test_setYieldVault_noBalanceNoDeposit() public {
+        // Pool has 0 raw balance — setting yield vault doesn't deposit anything
+        vault.setYieldVault(poolId, address(yv));
+        assertEq(vault.yieldShares(poolId), 0);
+        assertEq(vault.yieldVault(poolId), address(yv));
+    }
+
+    function test_setYieldVault_depositsExistingRawBalance() public {
+        vault.seedPool(poolId, SEED);
+        assertEq(vault.yieldShares(poolId), 0);
+
+        // setYieldVault with existing raw balance → auto-deposit inline path (lines 117-123)
+        vault.setYieldVault(poolId, address(yv));
+
+        assertEq(vault.yieldShares(poolId), SEED);
+        assertEq(vault.poolBalance(poolId), SEED);  // convertToAssets(SEED) = SEED (1:1 mock)
+    }
+
+    function test_setYieldVault_emitsYieldDeposited_onAutoDeposit() public {
+        vault.seedPool(poolId, SEED);
+        vm.expectEmit(true, false, false, true);
+        emit RecaptureVault.YieldDeposited(poolId, SEED, SEED);
+        vault.setYieldVault(poolId, address(yv));
+    }
+
+    // ─── poolBalance includes yield (line 200-201) ─────────────────────────────
+
+    function test_poolBalance_includesYieldShares() public {
+        vault.seedPool(poolId, SEED);
+        vault.setYieldVault(poolId, address(yv));
+
+        // All balance is in yield vault → poolBalance reads convertToAssets
+        assertEq(vault.poolBalance(poolId), SEED);
+        assertEq(vault.totalAssets(poolId), SEED);
+    }
+
+    function test_poolBalance_noYieldVault_returnsRawBalance() public {
+        vault.seedPool(poolId, SEED);
+        // No yield vault set
+        assertEq(vault.poolBalance(poolId), SEED);
+    }
+
+    // ─── _depositToYield via seedPool (lines 228-233) ──────────────────────────
+
+    function test_depositToYield_calledOnSeed() public {
+        vault.setYieldVault(poolId, address(yv)); // set BEFORE seeding
+        vault.seedPool(poolId, SEED);
+
+        // _depositToYield ran: raw balance drained, shares minted
+        assertEq(vault.yieldShares(poolId), SEED);
+        assertEq(vault.poolBalance(poolId), SEED);
+    }
+
+    function test_depositToYield_calledOnCredit() public {
+        vault.setYieldVault(poolId, address(yv));
+
+        uint256 creditAmt = 200 ether;
+        token.mint(address(vault), creditAmt); // simulate hook pushing tokens to vault
+        vault.credit(poolId, creditAmt);
+
+        assertEq(vault.yieldShares(poolId), creditAmt);
+        assertEq(vault.totalCredited(poolId), creditAmt);
+    }
+
+    function test_depositToYield_emitsYieldDeposited() public {
+        vault.setYieldVault(poolId, address(yv));
+        vm.expectEmit(true, false, false, true);
+        emit RecaptureVault.YieldDeposited(poolId, SEED, SEED);
+        vault.seedPool(poolId, SEED);
+    }
+
+    // ─── _ensureBalance (lines 239-250) ────────────────────────────────────────
+
+    function test_ensureBalance_redeemFromYieldOnPay() public {
+        vault.setYieldVault(poolId, address(yv));
+        vault.seedPool(poolId, SEED); // raw=0, shares=SEED
+
+        uint256 payAmt = 100 ether;
+        uint256 paid   = vault.payRecapture(poolId, posId, recipient, payAmt);
+
+        assertEq(paid, payAmt);
+        assertEq(token.balanceOf(recipient), payAmt);
+        assertLt(vault.yieldShares(poolId), SEED);
+        assertEq(vault.totalPaid(poolId), payAmt);
+    }
+
+    function test_ensureBalance_emitsYieldWithdrawn() public {
+        vault.setYieldVault(poolId, address(yv));
+        vault.seedPool(poolId, SEED);
+
+        vm.expectEmit(true, false, false, false);
+        emit RecaptureVault.YieldWithdrawn(poolId, 0, 0);
+        vault.payRecapture(poolId, posId, recipient, 100 ether);
+    }
+
+    function test_ensureBalance_partialPay_whenSharesLimited() public {
+        vault.setYieldVault(poolId, address(yv));
+        vault.seedPool(poolId, 50 ether);
+
+        // Request > available → paid capped at poolBalance
+        uint256 paid = vault.payRecapture(poolId, posId, recipient, 999 ether);
+        assertEq(paid, 50 ether);
+    }
+
+    function test_ensureBalance_noOp_whenRawBalanceSufficient() public {
+        vault.seedPool(poolId, SEED); // raw balance only (no yield vault)
+        uint256 paid = vault.payRecapture(poolId, posId, recipient, 100 ether);
+        assertEq(paid, 100 ether);
+        assertEq(vault.yieldShares(poolId), 0); // no yield vault touched
+    }
+
+    // ─── pause / unpause (lines 209, 213) ─────────────────────────────────────
+
+    function test_pause_and_unpause() public {
+        vault.pause();
+        assertTrue(vault.paused());
+        vault.unpause();
+        assertFalse(vault.paused());
+    }
+
+    function test_pause_blocksSeedPool_viaOwner() public {
+        vault.pause();
+        vm.expectRevert();
+        vault.seedPool(poolId, 1 ether);
+    }
+
+    function test_pause_blocksCredit_viaHook() public {
+        vault.pause();
+        vm.expectRevert();
+        vault.credit(poolId, 1 ether);
+    }
+
+    function test_pause_blocksPayRecapture_viaHook() public {
+        vault.seedPool(poolId, SEED);
+        vault.pause();
+        vm.expectRevert();
+        vault.payRecapture(poolId, posId, recipient, 1 ether);
+    }
+
+    function test_pause_blocksRecordForfeit_viaHook() public {
+        vault.pause();
+        vm.expectRevert();
+        vault.recordForfeit(poolId, posId, 1 ether);
+    }
+
+    // ─── emergencyRescue ───────────────────────────────────────────────────────
+
+    function test_emergencyRescue_transfersBalance() public {
+        vault.seedPool(poolId, SEED);
+        vault.pause();
+        uint256 before = token.balanceOf(recipient);
+        vault.emergencyRescue(address(token), recipient);
+        assertEq(token.balanceOf(address(vault)), 0);
+        assertEq(token.balanceOf(recipient), before + SEED);
+    }
+
+    function test_emergencyRescue_requiresPaused() public {
+        vault.seedPool(poolId, SEED);
+        vm.expectRevert();
+        vault.emergencyRescue(address(token), recipient);
+    }
+
+    function test_emergencyRescue_noopWhenZeroBalance() public {
+        vault.pause();
+        uint256 before = token.balanceOf(recipient);
+        vault.emergencyRescue(address(token), recipient);
+        assertEq(token.balanceOf(recipient), before);
     }
 }

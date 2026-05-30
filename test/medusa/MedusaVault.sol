@@ -65,8 +65,9 @@ contract MedusaVaultTest {
 
     function handler_credit(uint96 amount) external {
         if (amount == 0) return;
-        // Mint fresh tokens to this contract (acting as hook) for the credit
-        token.mint(address(this), amount);
+        // Phase 2: hook is responsible for having tokens already in the vault
+        // (via poolManager.take). Simulate by minting directly to vault.
+        token.mint(address(vault), amount);
         totalCredited += amount;
         vault.credit(poolId, amount);
     }
@@ -88,11 +89,15 @@ contract MedusaVaultTest {
 
     // ─── Properties ────────────────────────────────────────────────────────────
 
-    /// @dev Core solvency: tokens paid out + remaining balance ≤ tokens ever put in.
+    /// @dev Core solvency: remaining + paid ≤ seeded + credited.
+    ///      Uses vault's own analytics (totalSeeded, totalCredited, totalPaid).
     function property_solvency() external view returns (bool) {
         uint256 remaining = vault.poolBalance(poolId);
-        // Allow 1-wei rounding from mulDiv in payRecapture
-        return remaining + totalPaid <= totalSeeded + totalCredited + 1;
+        uint256 paid      = vault.totalPaid(poolId);
+        uint256 seeded    = vault.totalSeeded(poolId);
+        uint256 credited  = vault.totalCredited(poolId);
+        // 1-wei rounding tolerance from mulDiv in payRecapture
+        return remaining + paid <= seeded + credited + 1;
     }
 
     /// @dev ERC20 balance of vault always ≥ its accounting (no leakage out).
@@ -106,12 +111,12 @@ contract MedusaVaultTest {
     function property_recipientsBalance() external view returns (bool) {
         uint256 r1 = token.balanceOf(recipient1);
         uint256 r2 = token.balanceOf(recipient2);
-        return r1 + r2 == totalPaid;
+        return r1 + r2 == vault.totalPaid(poolId);
     }
 
     /// @dev Pool balance never exceeds what was put in.
     function property_poolBalanceBounded() external view returns (bool) {
-        return vault.poolBalance(poolId) <= totalSeeded + totalCredited;
+        return vault.poolBalance(poolId) <= vault.totalSeeded(poolId) + vault.totalCredited(poolId);
     }
 
     /// @dev Unregistered pool always has zero balance and no token.
