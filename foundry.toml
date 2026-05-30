@@ -9,6 +9,9 @@ solc_version = "0.8.30"
 src = "src"
 via_ir = true
 
+[rpc_endpoints]
+unichain = "${UNICHAIN_RPC_URL}"
+
 [lint]
 exclude_lints = ["screaming-snake-case-immutable", "screaming-snake-case-const"]
 lint_on_build = false

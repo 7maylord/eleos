@@ -72,16 +72,19 @@ RecaptureMath (pure library)
 
 ---
 
-## Deployed Contracts (Sepolia)
+## Deployed Contracts (Unichain Sepolia — chain 1301)
 
 | Contract | Address |
 |---|---|
-| TOKEN0 (ELOA) | `0x04d2046384a617d1f9c25D43bb80dA724fa6Ad01` |
-| TOKEN1 (ELOB) | `0xC593Ad8F126fBf196993eD3b776cbe4cf1381365` |
-| RecaptureVault | `0xECc0e0329fF5CC42ACd02ff3d3FF373F1Fa58f22` |
-| RecaptureHook | `0x48405192A7FeE7b4891d92C82941dD170Ed086c4` |
+| TOKEN0 (ELOB) | `0x1c422b32b77BFFDdBA4e0D632d30A5E400A03033` |
+| TOKEN1 (ELOA) | `0x6669CAa4C053903926DDA50446306EBCA354Da56` |
+| RecaptureVault | `0x2D697C39bFabd18c878A5d460c4579BCAC753DC3` |
+| RecaptureHook | `0x6B02d68B812752A032c52796281C039B2e24c6c4` |
+| PoolManager | `0x00B036B58a818B1BC34d502D3fE730Db729e62AC` |
 
-Pool ID: `0xbd37fa30f348408870279a474a7b24890d53dd9da1b69ccaf77f087105b2d016`
+Pool ID: `0xe5430c0a367d7890fb11f6c02c6a3c26318241537584a9e7fd1599706e443196`
+
+> Note: Uniswap v4 requires `currency0 < currency1` by address. Addresses are assigned by the EVM at deploy time, so which token becomes token0/token1 depends on deployment order — not the token name.
 
 ---
 

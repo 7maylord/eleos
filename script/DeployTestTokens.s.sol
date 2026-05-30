@@ -4,14 +4,14 @@ pragma solidity ^0.8.26;
 import {Script, console} from "forge-std/Script.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 
-/// @notice Deploys two MockERC20 tokens on Sepolia and mints to the deployer.
+/// @notice Deploys two MockERC20 tokens on Unichain and mints to the deployer.
 ///         Run this FIRST, then add the printed addresses to .env as:
 ///           TOKEN0_ADDRESS=<lower address>
 ///           TOKEN1_ADDRESS=<higher address>
 ///
 /// Usage:
 ///   forge script script/DeployTestTokens.s.sol \
-///     --rpc-url $SEPOLIA_RPC_URL --account eleos-deployer --broadcast
+///     --rpc-url $UNICHAIN_RPC_URL --account eleos-deployer --broadcast
 contract DeployTestTokens is Script {
     uint256 constant MINT_AMOUNT = 10_000_000 ether;
 

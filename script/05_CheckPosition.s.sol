@@ -22,7 +22,7 @@ import {RecaptureMath} from "../src/RecaptureMath.sol";
 ///
 /// Usage:
 ///   TICK_LOWER=-887220 TICK_UPPER=887220 forge script script/05_CheckPosition.s.sol \
-///     --rpc-url $SEPOLIA_RPC_URL --account eleos-deployer
+///     --rpc-url $UNICHAIN_RPC_URL --account eleos-deployer
 contract CheckPositionScript is BaseScript {
     using CurrencyLibrary for Currency;
     using StateLibrary for IPoolManager;

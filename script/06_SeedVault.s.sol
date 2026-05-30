@@ -16,7 +16,7 @@ import {RecaptureHook} from "../src/RecaptureHook.sol";
 ///
 /// Usage:
 ///   forge script script/06_SeedVault.s.sol \
-///     --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast
+///     --rpc-url $UNICHAIN_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast
 contract SeedVaultScript is Script {
     using PoolIdLibrary for PoolKey;
 

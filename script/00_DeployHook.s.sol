@@ -16,7 +16,7 @@ import {RecaptureVault} from "../src/RecaptureVault.sol";
 ///
 /// Usage:
 ///   forge script script/00_DeployHook.s.sol \
-///     --rpc-url $SEPOLIA_RPC_URL --account eleos-deployer --broadcast
+///     --rpc-url $UNICHAIN_RPC_URL --account eleos-deployer --broadcast
 contract DeployHookScript is BaseScript {
     function run() public {
         // ── Hook Flags ──────────────────────────────────────────────────────

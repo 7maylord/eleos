@@ -20,7 +20,7 @@ import {RecaptureHook} from "../src/RecaptureHook.sol";
 ///
 /// Usage:
 ///   TOKEN_ID=1 LIQUIDITY=0 forge script script/04_RemoveLiquidity.s.sol \
-///     --rpc-url $SEPOLIA_RPC_URL --account eleos-deployer --broadcast
+///     --rpc-url $UNICHAIN_RPC_URL --account eleos-deployer --broadcast
 contract RemoveLiquidityScript is BaseScript {
     using CurrencyLibrary for Currency;
     using StateLibrary for IPoolManager;
