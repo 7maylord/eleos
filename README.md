@@ -1,183 +1,158 @@
-# Uniswap v4 Hook Template
+# Eleos — IL Recapture Hook for Uniswap v4
 
-**A template for writing Uniswap v4 Hooks 🦄**
+> *"IL is not lost — it is only deferred."*
 
-### Get Started
+Eleos is a Uniswap v4 hook that recaptures Impermanent Loss (IL) for patient liquidity providers. It combines real-time fee diversion, time-based recapture curves, a loyalty multiplier, and an on-chain yield strategy to make LP positions sustainably profitable over time.
 
-This template provides a starting point for writing Uniswap v4 Hooks, including a simple example and preconfigured test environment. Start by creating a new repository using the "Use this template" button at the top right of this page. Alternatively you can also click this link:
+---
 
-[![Use this Template](https://img.shields.io/badge/Use%20this%20Template-101010?style=for-the-badge&logo=github)](https://github.com/uniswapfoundation/v4-template/generate)
+## How It Works
 
-1. The example hook [Counter.sol](src/Counter.sol) demonstrates the `beforeSwap()` and `afterSwap()` hooks
-2. The test template [Counter.t.sol](test/Counter.t.sol) preconfigures the v4 pool manager, test tokens, and test liquidity.
+### 1. Position Snapshotting (afterAddLiquidity)
+When an LP adds liquidity, the hook records:
+- Entry `sqrtPrice` (for IL calculation)
+- Entry timestamp (for time-based recapture)
+- Liquidity amount and deposit value
+- Optional `lockDuration` — longer locks unlock faster recapture
 
-<details>
-<summary>Updating to v4-template:latest</summary>
+### 2. Fee Diversion (afterSwapReturnDelta)
+On every swap, `feeDiversionBps` (default 20%) of the LP fee is physically moved into the `RecaptureVault`:
+```
+poolManager.take(currency1, vault, diverted)
+vault.credit(poolId, diverted)
+```
+The swapper pays a small surcharge; LP fees are unchanged.
 
-This template is actively maintained -- you can update the v4 dependencies, scripts, and helpers:
+### 3. Recapture on Exit (beforeRemoveLiquidity)
+When an LP removes liquidity, the hook:
+1. Computes IL: `IL = (r−1)² / (r²+1)` where `r = currentSqrt / entrySqrt`
+2. Applies a linear recapture ratio: `min(timeHeld / lockDuration, 1)`
+3. Multiplies by a loyalty bonus: up to 2× for long-term holders
+4. Adds accumulated forfeit share from earlier exits
+5. Pays recaptured IL from the `RecaptureVault`
+6. Records any forfeit (early-exit penalty) for redistribution
 
+### 4. Forfeit Redistribution (Feature 3)
+Early exits forfeit their unrealised recapture to a pool-level `forfeitGrowthGlobal` accumulator. Patient LPs automatically collect this surplus on their next settlement.
+
+### 5. Claim Without Exit (Feature 5)
+`claimRecapture(key, tickLower, tickUpper)` lets an LP collect their accrued recapture without removing liquidity, resetting the position clock.
+
+### 6. ERC-4626 Yield Strategy (Feature 2)
+The `RecaptureVault` can route idle capital to any ERC-4626 vault (Aave, Morpho, etc.) via `setYieldVault(poolId, yieldVault)`. Yield accrues on top of diverted fees, making the vault self-sustaining.
+
+---
+
+## Architecture
+
+```
+RecaptureHook
+│  afterAddLiquidity  → snapshot position
+│  beforeSwap         → reads fee params
+│  afterSwap          → diverts feeDiversionBps to vault, updates feeGrowthGlobal
+│  afterSwapReturnDelta → physically moves tokens (hook delta)
+│  beforeRemoveLiquidity → compute IL, pay recapture, record forfeit
+│  claimRecapture()   → external claim without removing liquidity
+│
+└── RecaptureVault
+    │  seedPool()      → admin seeds initial capital
+    │  credit()        → called by hook after fee diversion
+    │  payRecapture()  → transfers recapture to LP
+    │  recordForfeit() → records early-exit forfeit
+    │  setYieldVault() → plug in ERC-4626 strategy
+    │
+    └── IYieldVault (ERC-4626)   e.g. AaveV3, MorphoBlue
+
+RecaptureMath (pure library)
+    calculateIL()               → (r-1)²/(r²+1)
+    recaptureRatio()            → linear time curve
+    calculateLoyaltyMultiplier()→ up to 2× bonus
+    calculateEarlyExitForfeit() → forfeit on early exit
+```
+
+---
+
+## Deployed Contracts (Sepolia)
+
+| Contract | Address |
+|---|---|
+| TOKEN0 (ELOA) | `0x04d2046384a617d1f9c25D43bb80dA724fa6Ad01` |
+| TOKEN1 (ELOB) | `0xC593Ad8F126fBf196993eD3b776cbe4cf1381365` |
+| RecaptureVault | `0xECc0e0329fF5CC42ACd02ff3d3FF373F1Fa58f22` |
+| RecaptureHook | `0x48405192A7FeE7b4891d92C82941dD170Ed086c4` |
+
+Pool ID: `0xbd37fa30f348408870279a474a7b24890d53dd9da1b69ccaf77f087105b2d016`
+
+---
+
+## Getting Started
+
+### Prerequisites
+- [Foundry](https://getfoundry.sh/) (forge ≥ 0.3)
+- [Medusa](https://github.com/crytic/medusa) (optional, for fuzzing)
+
+### Install
 ```bash
-git remote add template https://github.com/uniswapfoundation/v4-template
-git fetch template
-git merge template/main <BRANCH> --allow-unrelated-histories
-```
-
-</details>
-
-### Requirements
-
-This template is designed to work with Foundry (stable). If you are using Foundry Nightly, you may encounter compatibility issues. You can update your Foundry installation to the latest stable version by running:
-
-```
-foundryup
-```
-
-To set up the project, run the following commands in your terminal to install dependencies and run the tests:
-
-```
+git clone <repo>
+cd eleos
 forge install
-forge test
 ```
 
-### Local Development
-
-Other than writing unit tests (recommended!), you can only deploy & test hooks on [anvil](https://book.getfoundry.sh/anvil/) locally. Scripts are available in the `script/` directory, which can be used to deploy hooks, create pools, provide liquidity and swap tokens. The scripts support both local `anvil` environment as well as running them directly on a production network.
-
-### Executing locally with using **Anvil**:
-
-1. Start Anvil (or fork a specific chain using anvil):
-
+### Build
 ```bash
-anvil
+forge build
 ```
 
-or
-
+### Test
 ```bash
-anvil --fork-url <YOUR_RPC_URL>
+forge test --via-ir
 ```
 
-2. Execute scripts:
-
+### Coverage
 ```bash
-forge script script/00_DeployHook.s.sol \
-    --rpc-url http://localhost:8545 \
-    --private-key <PRIVATE_KEY> \
-    --broadcast
+# --ir-minimum required due to stack depth in RecaptureHook
+forge coverage --ir-minimum --report summary
 ```
 
-### Using **RPC URLs** (actual transactions):
+Expected coverage on `src/` contracts:
+| File | Lines | Functions |
+|---|---|---|
+| RecaptureHook.sol | ~97% | 100% |
+| RecaptureVault.sol | ~98% | 100% |
+| RecaptureMath.sol | 100% | 100% |
 
-:::info
-It is best to not store your private key even in .env or enter it directly in the command line. Instead use the `--account` flag to select your private key from your keystore.
-:::
-
-### Follow these steps if you have not stored your private key in the keystore:
-
-<details>
-
-1. Add your private key to the keystore:
-
+### Medusa Fuzzing
 ```bash
-cast wallet import <SET_A_NAME_FOR_KEY> --interactive
+medusa fuzz
 ```
+Targets `MedusaMathTest` and `MedusaVaultTest` with 5 property invariants and 12 assertion checks.
 
-2. You will prompted to enter your private key and set a password, fill and press enter:
+---
 
-```
-Enter private key: <YOUR_PRIVATE_KEY>
-Enter keystore password: <SET_NEW_PASSWORD>
-```
+## Key Design Decisions
 
-You should see this:
+**Why afterSwapReturnDelta?**
+Uniswap v4's `afterSwapReturnDelta` hook flag lets the hook take a delta from the swap output. The hook takes `diverted` tokens via `poolManager.take()`, reducing the swapper's output by that amount without touching LP fees.
 
-```
-`<YOUR_WALLET_PRIVATE_KEY_NAME>` keystore was saved successfully. Address: <YOUR_WALLET_ADDRESS>
-```
+**Why separate forfeitGrowthGlobal accumulator?**
+Mirrors Uniswap's `feeGrowthGlobal` pattern. Keeps the `PositionInfo` struct stable (no breaking changes to existing callers) while enabling per-position forfeit redistribution.
 
-::: warning
-Use `history -c` to clear your command history.
-:::
+**Why linear recapture curve?**
+Simple to reason about and audit. The lock duration gives LPs a clear commitment period. A linear curve means LPs always benefit from holding longer, with no cliff effects.
 
-</details>
+---
 
-1. Execute scripts:
+## Security Notes
 
-```bash
-forge script script/00_DeployHook.s.sol \
-    --rpc-url <YOUR_RPC_URL> \
-    --account <YOUR_WALLET_PRIVATE_KEY_NAME> \
-    --sender <YOUR_WALLET_ADDRESS> \
-    --broadcast
-```
+- `setHook()` is callable only once (immutable after first set)
+- `payRecapture` is capped at available pool balance — vault never over-pays
+- Vault has `Pausable` + `emergencyRescue` for incident response
+- Hook has `nonReentrant` on remove-liquidity to prevent re-entrancy attacks
+- Yield vault integration guarded: must redeem shares before switching strategies
+- IL calculation guarded against FullMath overflow at extreme price ratios
 
-You will prompted to enter your wallet password, fill and press enter:
+---
 
-```
-Enter keystore password: <YOUR_PASSWORD>
-```
+## License
 
-### Key Modifications to note:
-
-1. Update the `token0` and `token1` addresses in the `BaseScript.sol` file to match the tokens you want to use in the network of your choice for sepolia and mainnet deployments.
-2. Update the `token0Amount` and `token1Amount` in the `CreatePoolAndAddLiquidity.s.sol` file to match the amount of tokens you want to provide liquidity with.
-3. Update the `token0Amount` and `token1Amount` in the `AddLiquidity.s.sol` file to match the amount of tokens you want to provide liquidity with.
-4. Update the `amountIn` and `amountOutMin` in the `Swap.s.sol` file to match the amount of tokens you want to swap.
-
-### Verifying the hook contract
-
-```bash
-forge verify-contract \
-  --rpc-url <URL> \
-  --chain <CHAIN_NAME_OR_ID> \
-  # Generally etherscan
-  --verifier <Verification_Provider> \
-  # Use --etherscan-api-key <ETHERSCAN_API_KEY> if you are using etherscan
-  --verifier-api-key <Verification_Provider_API_KEY> \
-  --constructor-args <ABI_ENCODED_ARGS> \
-  --num-of-optimizations <OPTIMIZER_RUNS> \
-  <Contract_Address> \
-  <path/to/Contract.sol:ContractName>
-  --watch
-```
-
-### Troubleshooting
-
-<details>
-
-#### Permission Denied
-
-When installing dependencies with `forge install`, Github may throw a `Permission Denied` error
-
-Typically caused by missing Github SSH keys, and can be resolved by following the steps [here](https://docs.github.com/en/github/authenticating-to-github/connecting-to-github-with-ssh)
-
-Or [adding the keys to your ssh-agent](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent#adding-your-ssh-key-to-the-ssh-agent), if you have already uploaded SSH keys
-
-#### Anvil fork test failures
-
-Some versions of Foundry may limit contract code size to ~25kb, which could prevent local tests to fail. You can resolve this by setting the `code-size-limit` flag
-
-```
-anvil --code-size-limit 40000
-```
-
-#### Hook deployment failures
-
-Hook deployment failures are caused by incorrect flags or incorrect salt mining
-
-1. Verify the flags are in agreement:
-   - `getHookCalls()` returns the correct flags
-   - `flags` provided to `HookMiner.find(...)`
-2. Verify salt mining is correct:
-   - In **forge test**: the _deployer_ for: `new Hook{salt: salt}(...)` and `HookMiner.find(deployer, ...)` are the same. This will be `address(this)`. If using `vm.prank`, the deployer will be the pranking address
-   - In **forge script**: the deployer must be the CREATE2 Proxy: `0x4e59b44847b379578588920cA78FbF26c0B4956C`
-     - If anvil does not have the CREATE2 deployer, your foundry may be out of date. You can update it with `foundryup`
-
-</details>
-
-### Additional Resources
-
-- [Uniswap v4 docs](https://docs.uniswap.org/contracts/v4/overview)
-- [v4-periphery](https://github.com/uniswap/v4-periphery)
-- [v4-core](https://github.com/uniswap/v4-core)
-- [v4-by-example](https://v4-by-example.org)
+MIT
