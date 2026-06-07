@@ -1,7 +1,7 @@
 'use client'
 
 import { useAccount } from 'wagmi'
-import { usePosition, usePreviewRecapture, usePoolState } from '@/lib/eleos'
+import { usePosition, usePreviewRecapture, usePoolState, usePoolSqrtPrice } from '@/lib/eleos'
 import { useClaimRecapture } from '@/lib/eleos/hooks'
 import {
   formatToken,
@@ -12,9 +12,6 @@ import {
   sqrtPriceX96ToPrice,
 } from '@/lib/eleos/utils'
 import { POOL_CONFIG } from '@/lib/eleos/constants'
-import { useReadContract } from 'wagmi'
-import { RECAPTURE_HOOK_ABI } from '@/lib/eleos/abis'
-import { CONTRACTS, POOL_ID } from '@/lib/eleos/constants'
 
 function Row({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -46,36 +43,14 @@ function LockBar({ pct }: { pct: number }) {
 }
 
 export function PositionCard() {
-  const { address, isConnected } = useAccount()
+  const { isConnected } = useAccount()
   const pos = usePosition(POOL_CONFIG.tickLower, POOL_CONFIG.tickUpper)
   const poolState = usePoolState()
   const { claim, isPending, isConfirming, isSuccess, error } = useClaimRecapture(
     POOL_CONFIG.tickLower,
     POOL_CONFIG.tickUpper,
   )
-
-  // Get current sqrtPrice from PoolManager via StateLibrary (use poolRegistered as proxy)
-  const { data: sqrtPrice } = useReadContract({
-    address: CONTRACTS.POOL_MANAGER,
-    abi: [
-      {
-        name: 'getSlot0',
-        type: 'function',
-        stateMutability: 'view',
-        inputs: [{ name: 'id', type: 'bytes32' }],
-        outputs: [
-          { name: 'sqrtPriceX96', type: 'uint160' },
-          { name: 'tick',         type: 'int24'   },
-          { name: 'protocolFee', type: 'uint24'  },
-          { name: 'lpFee',       type: 'uint24'  },
-        ],
-      },
-    ] as const,
-    functionName: 'getSlot0',
-    args: [POOL_ID],
-  })
-
-  const currentSqrtPrice = sqrtPrice?.[0]
+  const { sqrtPriceX96: currentSqrtPrice } = usePoolSqrtPrice()
   const preview = usePreviewRecapture(pos.posId, currentSqrtPrice)
 
   if (!isConnected) {

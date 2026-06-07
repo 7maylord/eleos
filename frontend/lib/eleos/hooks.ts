@@ -33,6 +33,37 @@ export function useWallet() {
   return useAccount()
 }
 
+// ─── Pool sqrtPrice ───────────────────────────────────────────────────────────
+
+const SLOT0_ABI = [
+  {
+    name: 'getSlot0',
+    type: 'function',
+    stateMutability: 'view',
+    inputs:  [{ name: 'id', type: 'bytes32' }],
+    outputs: [
+      { name: 'sqrtPriceX96', type: 'uint160' },
+      { name: 'tick',         type: 'int24'   },
+      { name: 'protocolFee',  type: 'uint24'  },
+      { name: 'lpFee',        type: 'uint24'  },
+    ],
+  },
+] as const
+
+export function usePoolSqrtPrice() {
+  const { data, isLoading } = useReadContract({
+    address:      CONTRACTS.STATE_VIEW,
+    abi:          SLOT0_ABI,
+    functionName: 'getSlot0',
+    args:         [POOL_ID],
+  })
+  return {
+    sqrtPriceX96: data?.[0] as bigint | undefined,
+    tick:         data?.[1] as number | undefined,
+    isLoading,
+  }
+}
+
 // ─── Position ─────────────────────────────────────────────────────────────────
 
 /**

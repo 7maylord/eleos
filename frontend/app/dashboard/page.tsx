@@ -3,6 +3,7 @@
 import { useAccount } from 'wagmi'
 import { Header } from '@/components/Header'
 import { PositionCard } from '@/components/PositionCard'
+import { AddLiquidityCard } from '@/components/AddLiquidityCard'
 import { VaultCard } from '@/components/VaultCard'
 import { TokenBalancesCard } from '@/components/TokenBalancesCard'
 import { FaucetCard } from '@/components/FaucetCard'
@@ -64,9 +65,10 @@ export default function Dashboard() {
           <ConnectPrompt />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Left column: position + claim */}
+            {/* Left column: position + add liquidity */}
             <div className="flex flex-col gap-4">
               <PositionCard />
+              <AddLiquidityCard />
             </div>
 
             {/* Right column: vault + balances + faucet */}

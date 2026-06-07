@@ -10,6 +10,8 @@ export const CONTRACTS = {
   // TOKEN1 = ELOA
   TOKEN1:           '0x6669CAa4C053903926DDA50446306EBCA354Da56' as Address,
   POOL_MANAGER:     '0x00B036B58a818B1BC34d502D3fE730Db729e62AC' as Address,
+  // StateView — v4-periphery view contract wrapping StateLibrary (getSlot0, etc.)
+  STATE_VIEW:       '0xc199f1072a74d4e905aba1a84d9a45e2546b6222' as Address,
   POSITION_MANAGER: '0xf969Aee60879C54bAAed9F3eD26147Db216Fd664' as Address,
   SWAP_ROUTER:      '0x9cD2b0a732dd5e023a5539921e0FD1c30E198Dba' as Address,
   // Permit2 — deterministic across all chains
