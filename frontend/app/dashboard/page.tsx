@@ -5,6 +5,7 @@ import { Header } from '@/components/Header'
 import { PositionCard } from '@/components/PositionCard'
 import { VaultCard } from '@/components/VaultCard'
 import { TokenBalancesCard } from '@/components/TokenBalancesCard'
+import { FaucetCard } from '@/components/FaucetCard'
 import { WalletButton } from '@/components/WalletButton'
 import { POOL_CONFIG, CONTRACTS, POOL_ID } from '@/lib/eleos/constants'
 
@@ -68,10 +69,11 @@ export default function Dashboard() {
               <PositionCard />
             </div>
 
-            {/* Right column: vault + balances */}
+            {/* Right column: vault + balances + faucet */}
             <div className="flex flex-col gap-4">
               <VaultCard />
               <TokenBalancesCard />
+              <FaucetCard />
             </div>
           </div>
         )}
