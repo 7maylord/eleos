@@ -44,9 +44,10 @@ export function VaultCard() {
     )
   }
 
+  // Scale by 1e6 before dividing to preserve sub-percent precision, then shift back
   const utilisation =
     totalSeeded && totalSeeded > 0n && totalPaid !== undefined
-      ? Number((totalPaid * 100n) / totalSeeded)
+      ? Number(totalPaid * 1_000_000n / totalSeeded) / 10_000
       : 0
 
   return (
@@ -95,12 +96,12 @@ export function VaultCard() {
       <div>
         <div className="flex justify-between text-xs text-zinc-500 mb-1">
           <span>Vault utilisation</span>
-          <span>{utilisation.toFixed(1)}%</span>
+          <span>{utilisation < 0.01 ? utilisation.toFixed(4) : utilisation.toFixed(2)}%</span>
         </div>
         <div className="h-1.5 w-full rounded-full bg-zinc-800 overflow-hidden">
           <div
             className="h-full rounded-full bg-linear-to-r from-emerald-500 to-emerald-400"
-            style={{ width: `${Math.min(utilisation, 100)}%` }}
+            style={{ width: `${Math.max(Math.min(utilisation, 100), utilisation > 0 ? 0.5 : 0)}%` }}
           />
         </div>
       </div>

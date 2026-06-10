@@ -23,17 +23,18 @@ interface IVaultView {
  *   • Move the pool price to create measurable IL on LP positions
  *
  * Usage:
+ *   source .env   # loads UNICHAIN_RPC_URL, DEPLOYER_PRIVATE_KEY, VAULT_ADDRESS, etc.
  *   forge script script/07_RunSwaps.s.sol \
  *     --rpc-url $UNICHAIN_RPC_URL \
  *     --private-key $DEPLOYER_PRIVATE_KEY \
  *     --broadcast -vvv
  *
- * Optional env vars:
+ * Optional env vars (set before sourcing, or export manually):
  *   SWAP_COUNT      Number of swaps to execute          (default: 5)
  *   SWAP_AMOUNT     Tokens per swap, no decimals         (default: 1000)
  *   DIRECTION       0 = ELOB→ELOA, 1 = ELOA→ELOB,
  *                   2 = alternating                      (default: 2)
- *   VAULT_ADDRESS   RecaptureVault to read stats from   (required for logging)
+ *   VAULT_ADDRESS   RecaptureVault to read stats from    (already in .env)
  */
 contract RunSwapsScript is BaseScript {
     using PoolIdLibrary for PoolKey;
@@ -65,8 +66,14 @@ contract RunSwapsScript is BaseScript {
             console.log("Vault total credited:     ", vault.totalCredited(poolId) / 1e18);
         }
         console.log("---");
-        console.log("Running", swapCount, "swaps of", swapAmount / 1e18, "tokens each");
-        console.log("Direction:", direction == 0 ? "ELOB->ELOA" : direction == 1 ? "ELOA->ELOB" : "alternating");
+        console.log(string.concat(
+            "Running ", vm.toString(swapCount),
+            " swaps of ", vm.toString(swapAmount / 1e18), " tokens each"
+        ));
+        console.log(string.concat(
+            "Direction: ",
+            direction == 0 ? "ELOB->ELOA" : direction == 1 ? "ELOA->ELOB" : "alternating"
+        ));
         console.log("---");
 
         // ── Approve routers ───────────────────────────────────────────────────

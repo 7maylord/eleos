@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { WalletButton } from './WalletButton'
 
@@ -12,6 +13,13 @@ export function Header() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
+          <Image 
+            src="/logo.png" 
+            alt="Eleos Logo" 
+            width={36} 
+            height={36} 
+            className="object-contain mr-1"
+          />
           <span className="text-xl font-bold bg-linear-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
             Eleos
           </span>
