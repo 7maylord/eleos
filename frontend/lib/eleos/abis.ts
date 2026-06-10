@@ -429,6 +429,34 @@ export const POSITION_MANAGER_ABI = [
   },
 ] as const
 
+// Uniswap v4 SwapRouter (hookmate IUniswapV4Router04) — single-pool exact-input
+export const SWAP_ROUTER_ABI = [
+  {
+    name: 'swapExactTokensForTokens',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [
+      { name: 'amountIn',    type: 'uint256' },
+      { name: 'amountOutMin',type: 'uint256' },
+      { name: 'zeroForOne',  type: 'bool'    },
+      {
+        name: 'poolKey', type: 'tuple',
+        components: [
+          { name: 'currency0',   type: 'address' },
+          { name: 'currency1',   type: 'address' },
+          { name: 'fee',         type: 'uint24'  },
+          { name: 'tickSpacing', type: 'int24'   },
+          { name: 'hooks',       type: 'address' },
+        ],
+      },
+      { name: 'hookData', type: 'bytes'   },
+      { name: 'receiver', type: 'address' },
+      { name: 'deadline',  type: 'uint256' },
+    ],
+    outputs: [{ name: 'delta', type: 'int256' }],
+  },
+] as const
+
 // Permit2 — token allowance for PositionManager
 export const PERMIT2_ABI = [
   {

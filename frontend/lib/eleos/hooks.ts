@@ -16,6 +16,7 @@ import {
   ERC20_ABI,
   POSITION_MANAGER_ABI,
   PERMIT2_ABI,
+  SWAP_ROUTER_ABI,
 } from './abis'
 import { CONTRACTS, POOL_ID, POOL_KEY, POOL_CONFIG, MAX_UINT160, MAX_UINT48 } from './constants'
 import {
@@ -406,6 +407,79 @@ export function useRemoveLiquidity() {
   }
 
   return { removeLiquidity, hash, isPending, isConfirming, isSuccess, error, reset }
+}
+
+// ─── Write: Swap ─────────────────────────────────────────────────────────────
+
+/** Check whether both tokens are approved to the SwapRouter (direct ERC-20 approval). */
+export function useSwapRouterAllowances() {
+  const { address } = useAccount()
+  const { data, refetch } = useReadContracts({
+    contracts: [
+      {
+        address: CONTRACTS.TOKEN0, abi: ERC20_ABI, functionName: 'allowance',
+        args: address ? [address, CONTRACTS.SWAP_ROUTER] : undefined,
+      },
+      {
+        address: CONTRACTS.TOKEN1, abi: ERC20_ABI, functionName: 'allowance',
+        args: address ? [address, CONTRACTS.SWAP_ROUTER] : undefined,
+      },
+    ],
+    query: { enabled: !!address },
+  })
+  return {
+    token0Approved: ((data?.[0]?.result ?? 0n) as bigint) > 0n,
+    token1Approved: ((data?.[1]?.result ?? 0n) as bigint) > 0n,
+    refetch,
+  }
+}
+
+/** Approve a token directly to the SwapRouter (not Permit2). */
+export function useApproveTokenToSwapRouter(tokenAddress: Address) {
+  const { writeContract, data: hash, isPending, error, reset } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const approve = () =>
+    writeContract({
+      address:      tokenAddress,
+      abi:          ERC20_ABI,
+      functionName: 'approve',
+      args:         [CONTRACTS.SWAP_ROUTER, 2n ** 256n - 1n],
+    })
+  return { approve, hash, isPending, isConfirming, isSuccess, error, reset }
+}
+
+/**
+ * Execute a single-pool exact-input swap via the v4 SwapRouter.
+ * Requires: token.approve(SWAP_ROUTER, MAX) for the input token.
+ */
+export function useSwap() {
+  const { address } = useAccount()
+  const { writeContract, data: hash, isPending, error, reset } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+
+  const swap = (params: {
+    amountIn:     bigint
+    amountOutMin: bigint
+    zeroForOne:   boolean
+  }) => {
+    if (!address) throw new Error('Wallet not connected')
+    writeContract({
+      address:      CONTRACTS.SWAP_ROUTER,
+      abi:          SWAP_ROUTER_ABI,
+      functionName: 'swapExactTokensForTokens',
+      args: [
+        params.amountIn,
+        params.amountOutMin,
+        params.zeroForOne,
+        POOL_KEY,
+        '0x',
+        address,
+        defaultDeadline(),
+      ],
+    })
+  }
+
+  return { swap, hash, isPending, isConfirming, isSuccess, error, reset }
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────
